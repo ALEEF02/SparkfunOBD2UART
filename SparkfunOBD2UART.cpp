@@ -51,6 +51,11 @@ byte hex2uint8(const char *p)
 	return c1 << 4 | (c2 & 0xf);
 }
 
+int CtoF(int C)
+{
+	return (int)round(1.8*C+32);
+}
+
 /*************************************************************************
 * OBD-II UART Adapter
 *************************************************************************/
@@ -72,6 +77,26 @@ bool COBD::readPID(byte pid, int& result)
 }
 
 byte COBD::readPID(const byte pid[], byte count, int result[])
+{
+	byte results = 0; 
+	for (byte n = 0; n < count; n++) {
+		if (readPID(pid[n], result[n])) {
+			results++;
+		}
+	}
+	return results;
+}
+
+bool COBD::readEnhancedPID(byte pid, int& result)
+{
+	char cmd[8];
+	sprintf(cmd, "%02X%02X", dataMode, pid);
+	write(cmd);
+	// receive and parse the response
+	return getResult(pid, result);
+}
+
+byte COBD::readEnhancedPID(const byte pid[], byte count, int result[])
 {
 	byte results = 0; 
 	for (byte n = 0; n < count; n++) {
@@ -137,9 +162,12 @@ int COBD::normalizeData(byte pid, char* data)
 {
 	int result;
 	switch (pid) {
-	case PID_RPM:
 	case PID_SPEED: //kmh
-		result = getSmallValue(data) / 0.621371192;
+		if (numForm == 0) {
+			result = getSmallValue(data) * 0.621371192; // Convert to mph
+			break;
+		}
+	case PID_RPM:
 	case PID_EVAP_SYS_VAPOR_PRESSURE: // kPa
 		result = getLargeValue(data) >> 2;
 		break;
@@ -368,7 +396,7 @@ int COBD::receive(char* buffer, int bufsize, unsigned int timeout)
 	unsigned long startTime = millis();
 	char c = 0;
 	for (;;) {
-		if (OBDUART.available() > 0) {
+		if (OBDUART.available()) {
 			c = OBDUART.read();
 			if (!buffer) {
 			       n++;
@@ -411,8 +439,9 @@ void COBD::recover()
 	sendCommand("", 0, 0);
 }
 
-int COBD::init(OBD_PROTOCOLS protocol)
+int COBD::init(OBD_PROTOCOLS protocol, byte unitFormat)
 {
+	numForm = unitFormat;
 	const char *initcmd[] = {"AT Z", "AT E0", "AT H0"};
 	char buffer[64];
 	byte stage;
@@ -429,7 +458,7 @@ int COBD::init(OBD_PROTOCOLS protocol)
 		}
 		stage = 1;
 		if (protocol != PROTO_AUTO) {
-			sprintf(buffer, "AT SP %u", protocol);
+			sprintf(buffer, "AT SP A%u", protocol);
 			delay(10);
 			if (!sendCommand(buffer, buffer, sizeof(buffer), OBD_TIMEOUT_SHORT) || !strstr(buffer, "OK")) {
 				continue;
@@ -546,4 +575,3 @@ void COBD::debugOutput(const char *s)
 	DEBUG.print(s);
 }
 #endif
-

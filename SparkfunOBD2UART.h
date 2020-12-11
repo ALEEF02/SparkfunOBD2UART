@@ -107,6 +107,7 @@ typedef enum {
 
 uint16_t hex2uint16(const char *p);
 uint8_t hex2uint8(const char *p);
+int CtoF(int C);
 
 class COBD
 {
@@ -116,7 +117,7 @@ public:
 	// terminate communication channel
 	virtual void end();
 	// initialize OBD-II connection
-	virtual int init(OBD_PROTOCOLS protocol = PROTO_AUTO);
+	virtual int init(OBD_PROTOCOLS protocol = PROTO_AUTO, byte unitFormat = 0);
 	// reset OBD-II connection
 	virtual void reset();
 	// un-initialize OBD-II connection
@@ -129,6 +130,10 @@ public:
 	virtual bool readPID(byte pid, int& result);
 	// read multiple (up to 8) OBD-II PID values, return number of values obtained
 	virtual byte readPID(const byte pid[], byte count, int result[]);
+	// read specified enhanced OBD-II PID value
+	virtual bool readEnhancedPID(byte pid, int& result);
+	// read multiple (up to 8) enhanced OBD-II PID values, return number of values obtained
+	virtual byte readEnhancedPID(const byte pid[], byte count, int result[]);
 	// set device into low power mode
 	virtual void enterLowPowerMode();
 	// wake up device from low power mode
@@ -143,7 +148,7 @@ public:
 	virtual float getVoltage();
 	// get VIN as a string, buffer length should be >= OBD_RECV_BUF_SIZE
 	virtual bool getVIN(char* buffer, byte bufsize);
-	// retrive and parse the response of specifie PID
+	// retrieve and parse the response of specified PID
 	virtual bool getResult(byte& pid, int& result);
 	// determine if the PID is supported
 	virtual bool isValidPID(byte pid);
@@ -155,6 +160,8 @@ public:
 	byte errors = 0;
 	// bit map of supported PIDs
 	byte pidmap[4 * 4] = {0};
+	// Numbers format. 0 = Imperial, 1 = Metric
+	byte numForm = 0;
 protected:
 	virtual char* getResponse(byte& pid, char* buffer, byte bufsize);
 	virtual int receive(char* buffer, int bufsize, unsigned int timeout = OBD_TIMEOUT_SHORT);
